@@ -1,0 +1,47 @@
+FROM ubuntu:16.04
+
+COPY sources.list /etc/apt/
+RUN apt-get update -y 
+RUN apt-get install -y git-core
+RUN cd /root && git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+RUN apt-get install -y python
+RUN apt-get install -y curl wget
+RUN apt-get update -y 
+RUN apt-get install -y openjdk-8-jdk
+RUN apt-get install -y lsb-core
+RUN apt-get install -y vim
+
+ENV PATH $PATH:/root/depot_tools
+
+RUN mkdir ~/chromium && cd ~/chromium && fetch --nohooks --no-history android
+
+#remove sudo because it doesnt exist
+RUN cd ~/chromium/src && sed -i 's/sudo / /g' build/install-build-deps.sh
+RUN cd ~/chromium/src && sed -i 's/sudo / /g' build/install-build-deps-android.sh
+
+RUN apt-get install -y liblapack-dev
+RUN apt-get update -y && cd ~/chromium/src && build/install-build-deps-android.sh
+
+RUN cd ~/chromium/src && gclient runhooks
+
+RUN mkdir /root/webrtc
+COPY ./webrtc/.gclient /root/webrtc
+
+# Manually run the following command in container!
+# Because Google requires us to accept license agreement manually.
+
+RUN git config --global user.email "jjqquu@hotmail.com"  && git config --global user.name "Pascal Qu"
+
+RUN apt-get install -y expect 
+
+RUN cd /root/webrtc && printf "\
+set timeout -1\n\
+spawn gclient sync --no-history \n\
+expect {\n\
+    \"Google Play services client library? \\\\\\\\\[y/n\\\\\\\\\]:\" { send \"y\\\n\" }\n\
+} \n\
+expect eof \n\
+" | expect
+
+RUN cd /root/webrtc/src && python scripts/build_android.py
+
